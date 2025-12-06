@@ -4932,57 +4932,51 @@ export const definitions: DefinitionWithExtend[] = [
         model: "WT-A03E",
         vendor: "Aqara",
         description: "Radiator thermostat W600",
+        fromZigbee: [lumi.fromZigbee.lumi_trv, fz.thermostat, fz.battery],
+        toZigbee: [lumi.toZigbee.lumi_trv, tz.thermostat_occupied_heating_setpoint],
+        exposes: [
+            e
+                .climate()
+                .withSetpoint("occupied_heating_setpoint", 5, 30, 0.5)
+                .withLocalTemperature(ea.STATE, "Current temperature measured by the internal or external sensor")
+                .withSystemMode(["off", "heat"], ea.ALL)
+                .withPreset(["manual", "away", "auto"])
+                .setAccess("preset", ea.ALL),
+            e.temperature_sensor_select(["internal", "external"]).withAccess(ea.ALL),
+            e.external_temperature_input().withDescription("Input for remote temperature sensor (when sensor is set to external)"),
+            e.calibrated().withDescription("Indicates if this valve is calibrated, use the calibrate option to calibrate"),
+            e.enum("calibrate", ea.ALL, ["calibrate"]).withDescription("Calibrates the valve").withCategory("config"),
+            e.child_lock().withAccess(ea.ALL),
+            e.window_detection_bool(),
+            e.window_open(),
+            e.valve_detection_bool(),
+            e
+                .valve_alarm()
+                .withDescription(
+                    "Notifies of a temperature control abnormality if valve detection is enabled " +
+                        "(e.g., thermostat not installed correctly, valve failure or incorrect calibration, " +
+                        "incorrect link to external temperature sensor)",
+                ),
+            e.away_preset_temperature().withAccess(ea.ALL),
+            e.battery_voltage(),
+            e.battery(),
+            e.power_outage_count(),
+            e.device_temperature(),
+            e.schedule(),
+            e
+                .schedule_settings()
+                .withDescription("Smart schedule configuration (default: mon,tue,wed,thu,fri|8:00,24.0|18:00,17.0|23:00,22.0|8:00,22.0)"),
+        ],
+        configure: async (device, coordinatorEndpoint) => {
+            const endpoint = device.getEndpoint(1);
+
+            // Initialize battery percentage and voltage
+            await endpoint.read("manuSpecificLumi", [0x040a], {manufacturerCode: manufacturerCode});
+            await endpoint.read("genPowerCfg", ["batteryVoltage"]);
+        },
         extend: [
-            m.thermostat({
-                setpoints: {
-                    values: {occupiedHeatingSetpoint: {min: 5, max: 30, step: 0.5}},
-                },
-                localTemperatureCalibration: {values: true},
-                temperatureSetpointHold: true,
-                temperatureSetpointHoldDuration: true,
-                setpointsLimit: {
-                    maxHeatSetpointLimit: {min: 5, max: 30, step: 0.5},
-                    minHeatSetpointLimit: {min: 5, max: 30, step: 0.5},
-                },
-            }),
-            m.enumLookup({
-                name: "calibrate",
-                lookup: {start: 1},
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x0270, type: Zcl.DataType.UINT8},
-                description: "Calibrates the valve",
-                access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.enumLookup({
-                name: "calibrated",
-                lookup: {not_ready: 0, ready: 1, error: 2, in_progress: 3},
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x027b, type: Zcl.DataType.UINT8},
-                description: "State of calibrate",
-                access: "STATE_GET",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.binary({
-                name: "state",
-                valueOn: ["ON", 1],
-                valueOff: ["OFF", 0],
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x0271, type: 0x20},
-                description: "Enabling termostat",
-                access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.binary({
-                name: "valve_detection",
-                valueOn: ["ON", 1],
-                valueOff: ["OFF", 0],
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x0274, type: 0x20},
-                description: "Determines if temperature control abnormalities should be detected",
-                access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
+            lumiZigbeeOTA(),
+            m.quirkCheckinInterval("1_HOUR"),
             m.binary({
                 name: "display_flip",
                 valueOn: ["ON", 1],
@@ -4991,48 +4985,6 @@ export const definitions: DefinitionWithExtend[] = [
                 attribute: {ID: 0x0330, type: 0x20},
                 description: "Display flip",
                 access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.binary({
-                name: "helper",
-                valueOn: ["ON", 1],
-                valueOff: ["OFF", 0],
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x027d, type: 0x20},
-                description: "Schedule helper",
-                access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.binary({
-                name: "window_detection",
-                valueOn: ["ON", 1],
-                valueOff: ["OFF", 0],
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x0273, type: 0x20},
-                description: "Enables/disables window detection on the device",
-                access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.binary({
-                name: "child_lock",
-                valueOn: ["LOCK", 1],
-                valueOff: ["UNLOCK", 0],
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x0277, type: 0x20},
-                description: "Enables/disables physical input on the device",
-                access: "ALL",
-                zigbeeCommandOptions: {manufacturerCode},
-            }),
-            m.numeric({
-                name: "away_preset_temperature",
-                valueMin: 0,
-                valueMax: 30,
-                valueStep: 0.5,
-                scale: 100,
-                unit: "°C",
-                cluster: "manuSpecificLumi",
-                attribute: {ID: 0x0279, type: Zcl.DataType.UINT32},
-                description: "Away preset temperature",
                 zigbeeCommandOptions: {manufacturerCode},
             }),
             m.numeric({
